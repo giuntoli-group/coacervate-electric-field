@@ -1,0 +1,53 @@
+
+
+units           lj
+atom_style      full
+dimension       3
+boundary        p p p
+variable        dt equal 0.0005
+timestep        ${dt}
+neigh_modify    one 5000 every 1
+#package         omp 2
+kspace_style    pppm 1.0e-4
+variable        lb equal 1
+variable        die equal 1/${lb}
+dielectric      ${die}
+
+read_data       relaxed_lb1.data
+
+set             type 2 charge 1.0
+set             type 3 charge -1.0
+
+bond_style      fene
+bond_coeff      * 30.0 1.5 1.0 1.0
+special_bonds   lj 0.0 1.0 1.0 coul 1.0 1.0 1.0
+
+pair_style      lj/cut/coul/long 1.12 10.0
+pair_coeff      * * 1.0 1.0
+
+variable        runtime equal 20000000
+variable        Temp equal 1.0
+#variable        Press equal 0.1
+variable        velSeed equal 926458
+variable        Tdamping equal 100*${dt}
+
+velocity        all create ${Temp} ${velSeed}
+
+thermo_style    custom step temp density press pe ke ecoul spcpu
+thermo          1000
+thermo_modify   line yaml
+restart         1000000 restart.*.equi
+
+fix             stabilize all momentum 5 linear 1 1 1
+fix             lng all langevin ${Temp} ${Temp} ${Tdamping} ${velSeed} zero yes
+fix             nve1 all nve
+
+dump            dumpBatch_full all custom 20000 traj_E.lammpstrj id type xu yu zu vx vy vz
+
+fix             ef all efield 0 ${field} 0
+fix_modify      ef energy yes
+
+run             ${runtime} upto
+
+write_data      final.data nofix nocoeff
+
